@@ -5,7 +5,7 @@ from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 
 # 🔹 جلب توكن البوت من المتغيرات البيئية
-TELEGRAM_BOT_TOKEN = os.getenv("7515232099:AAHi7Bqz6CmP0poSq48cdAWVPPnh8EbFVZk")
+TTELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # 🔥 تهيئة بوت التليجرام
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
