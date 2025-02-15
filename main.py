@@ -69,10 +69,14 @@ def webhook():
 @app.route('/')
 def index():
     bot.remove_webhook()
-    webhook_url = f"https://{os.getenv('RAILWAY_APP_DOMAIN')}/{TELEGRAM_BOT_TOKEN}"
+    
+    # 🔹️ تأكد من أن الرابط يحتوي على البورت الصحيح
+    railway_domain = os.getenv('RAILWAY_APP_DOMAIN', 'telegram-bot-guard-production.up.railway.app')
+    webhook_url = f"https://{railway_domain}:8080/{TELEGRAM_BOT_TOKEN}"
+    
     bot.set_webhook(url=webhook_url)
-    return f"Bot is running! Webhook set to: {webhook_url}"
+    return f"🚀 Bot is running! Webhook set to: {webhook_url}"
 
 if __name__ == "__main__":
-    PORT = int(os.environ.get("PORT", 5000))
+    PORT = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=PORT)
