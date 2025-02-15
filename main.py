@@ -4,8 +4,10 @@ import telebot
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 
-# 🔹 جلب توكن البوت من المتغيرات البيئية
-TELEGRAM_BOT_TOKEN= os.getenv("TELEGRAM_BOT_TOKEN")
+# 🔹️ جلب توكن البوت من المتغيرات البيئية
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+if not TELEGRAM_BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN is not set!")
 
 # 🔥 تهيئة بوت التليجرام
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
@@ -16,7 +18,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 
 db = SQLAlchemy(app)
 
-# 🔹 نموذج تخزين بيانات المستخدمين
+# 🔹️ نموذج تخزين بيانات المستخدمين
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     telegram_id = db.Column(db.String(50), unique=True, nullable=False)
@@ -26,7 +28,7 @@ class User(db.Model):
 with app.app_context():
     db.create_all()
 
-# 🔐 دالة توليد بصمة الجهاز
+# 🔒 دالة توليد بصمة الجهاز
 def generate_device_id(user):
     return hashlib.sha256(str(user.id).encode()).hexdigest()
 
@@ -37,7 +39,7 @@ def check_user(message):
         user_id = new_member.id
         chat_id = message.chat.id
 
-        # 🔹 فحص المستخدم في قاعدة البيانات
+        # 🔹️ فحص المستخدم في قاعدة البيانات
         user = User.query.filter_by(telegram_id=user_id).first()
         device_id = generate_device_id(new_member)
 
@@ -52,8 +54,13 @@ def check_user(message):
             db.session.commit()
             bot.send_message(chat_id, f"✅ المستخدم @{new_member.username} تم تسجيل جهازه بنجاح!")
 
+# ✅ استقبال أمر /start والرد عليه
+@bot.message_handler(commands=['start'])
+def start_command(message):
+    bot.send_message(message.chat.id, "🚀 البوت شغال بنجاح!")
+
 # 🚀 تشغيل Flask مع Webhook للبوت
-@app.route('/' + TELEGRAM_BOT_TOKEN, methods=['POST'])
+@app.route(f'/{TELEGRAM_BOT_TOKEN}', methods=['POST'])
 def webhook():
     bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
     return 'OK', 200
@@ -62,10 +69,10 @@ def webhook():
 @app.route('/')
 def index():
     bot.remove_webhook()
-    bot.set_webhook(url=f"https://{os.getenv('RAILWAY_APP_DOMAIN')}/{TELEGRAM_BOT_TOKEN}")
-    return "Bot is running!"
+    webhook_url = f"https://{os.getenv('RAILWAY_APP_DOMAIN')}/{TELEGRAM_BOT_TOKEN}"
+    bot.set_webhook(url=webhook_url)
+    return f"Bot is running! Webhook set to: {webhook_url}"
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
-
-
+    PORT = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=PORT)
