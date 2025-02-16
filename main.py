@@ -23,6 +23,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     telegram_id = db.Column(db.String(50), unique=True, nullable=False)
     session_id = db.Column(db.String(100), unique=False, nullable=True)
+    ip_address = db.Column(db.String(50), nullable=True)
 
 # 📌 إنشاء قاعدة البيانات
 with app.app_context():
@@ -38,17 +39,26 @@ def check_message(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
     session_id = generate_session_id()
+    user_ip = request.remote_addr  # الحصول على عنوان IP المستخدم
 
-    # 🔹️ فحص المستخدم في قاعدة البيانات
+    # 🔹️ جلب المستخدم من قاعدة البيانات
     user = User.query.filter_by(telegram_id=user_id).first()
+
+    # ✅ التحقق مما إذا كان المستخدم لا يزال في الجروب
+    chat_member = bot.get_chat_member(chat_id, user_id)
+    if chat_member.status in ["left", "kicked"]:
+        if user:
+            db.session.delete(user)
+            db.session.commit()
+        return  # المستخدم غادر الجروب، لا داعي لمعالجته
 
     if user:
         if user.session_id and user.session_id != session_id:
             bot.kick_chat_member(chat_id, user_id)
-            bot.send_message(chat_id, f"🚫 المستخدم @{message.from_user.username} طُرد لأنه استخدم جهاز آخر!")
+            bot.send_message(chat_id, f"🚫 المستخدم @{message.from_user.username} طُرد لاستخدام جهاز مختلف!")
             return
     else:
-        new_user = User(telegram_id=user_id, session_id=session_id)
+        new_user = User(telegram_id=user_id, session_id=session_id, ip_address=user_ip)
         db.session.add(new_user)
         db.session.commit()
         bot.send_message(chat_id, f"✅ المستخدم @{message.from_user.username} تم تسجيل جهازه!")
@@ -68,10 +78,8 @@ def webhook():
 @app.route('/')
 def index():
     bot.remove_webhook()
-    
     railway_domain = os.getenv('RAILWAY_APP_DOMAIN', 'telegram-bot-guard-production.up.railway.app')
     webhook_url = f"https://{railway_domain}/{TELEGRAM_BOT_TOKEN}"
-    
     bot.set_webhook(url=webhook_url)
     return f"🚀 Bot is running! Webhook set to: {webhook_url}"
 
