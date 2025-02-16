@@ -5,7 +5,7 @@ from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 import random
 
-# 🔹️ جلب توكن البوت من المتغيرات البيئية
+# 🔹️ جلب توكن البوت
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN is not set!")
@@ -22,7 +22,7 @@ db = SQLAlchemy(app)
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     telegram_id = db.Column(db.String(50), unique=True, nullable=False)
-    session_id = db.Column(db.String(100), unique=True, nullable=True)
+    session_id = db.Column(db.String(100), unique=False, nullable=True)
 
 # 📌 إنشاء قاعدة البيانات
 with app.app_context():
@@ -32,31 +32,28 @@ with app.app_context():
 def generate_session_id():
     return hashlib.sha256(str(random.randint(1000, 9999)).encode()).hexdigest()
 
-# ✅ فحص المستخدم عند دخوله الجروب
-@bot.message_handler(content_types=['new_chat_members'])
-def check_user(message):
-    for new_member in message.new_chat_members:
-        user_id = new_member.id
-        chat_id = message.chat.id
+# ✅ التحقق عند إرسال رسالة
+@bot.message_handler(func=lambda message: True)
+def check_message(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    session_id = generate_session_id()
 
-        # 🔹️ توليد معرف جلسة جديد
-        session_id = generate_session_id()
+    # 🔹️ فحص المستخدم في قاعدة البيانات
+    user = User.query.filter_by(telegram_id=user_id).first()
 
-        # 🔹️ فحص المستخدم في قاعدة البيانات
-        user = User.query.filter_by(telegram_id=user_id).first()
+    if user:
+        if user.session_id and user.session_id != session_id:
+            bot.kick_chat_member(chat_id, user_id)
+            bot.send_message(chat_id, f"🚫 المستخدم @{message.from_user.username} طُرد لأنه استخدم جهاز آخر!")
+            return
+    else:
+        new_user = User(telegram_id=user_id, session_id=session_id)
+        db.session.add(new_user)
+        db.session.commit()
+        bot.send_message(chat_id, f"✅ المستخدم @{message.from_user.username} تم تسجيل جهازه!")
 
-        if user:
-            if user.session_id and user.session_id != session_id:
-                bot.kick_chat_member(chat_id, user_id)
-                bot.send_message(chat_id, f"🚫 المستخدم @{new_member.username} طُرد لأنه حاول الدخول من جهاز آخر!")
-                return
-        else:
-            new_user = User(telegram_id=user_id, session_id=session_id)
-            db.session.add(new_user)
-            db.session.commit()
-            bot.send_message(chat_id, f"✅ المستخدم @{new_member.username} تم تسجيل جهازه بنجاح!")
-
-# ✅ استقبال أمر /start والرد عليه
+# ✅ استقبال أمر /start
 @bot.message_handler(commands=['start'])
 def start_command(message):
     bot.send_message(message.chat.id, "🚀 البوت شغال بنجاح!")
@@ -72,9 +69,8 @@ def webhook():
 def index():
     bot.remove_webhook()
     
-    # 🔹️ تأكد من أن الرابط يحتوي على البورت الصحيح
     railway_domain = os.getenv('RAILWAY_APP_DOMAIN', 'telegram-bot-guard-production.up.railway.app')
-    webhook_url = f"https://{railway_domain}:8080/{TELEGRAM_BOT_TOKEN}"
+    webhook_url = f"https://{railway_domain}/{TELEGRAM_BOT_TOKEN}"
     
     bot.set_webhook(url=webhook_url)
     return f"🚀 Bot is running! Webhook set to: {webhook_url}"
