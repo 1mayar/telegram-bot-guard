@@ -92,7 +92,7 @@ def webhook():
 def index():
     bot.remove_webhook()  # إزالة الـ Webhook القديم إذا كان موجود
     railway_domain = os.getenv('RAILWAY_APP_DOMAIN', 'telegram-bot-guard-production.up.railway.app')
-    webhook_url = f"https://{railway_domain}/{TELEGRAM_BOT_TOKEN}"
+    webhook_url = f"https://{railway_domain}/{TELEGRAM_BOT_TOKEN}"  # تعيين الـ Webhook باستخدام التوكن الصحيح
     bot.set_webhook(url=webhook_url)  # تعيين الـ Webhook الجديد
 
     # التحقق من حالة Webhook
