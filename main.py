@@ -82,16 +82,23 @@ def start_command(message):
 # 🚀 تشغيل Flask مع Webhook للبوت
 @app.route(f'/{TELEGRAM_BOT_TOKEN}', methods=['POST'])
 def webhook():
-    bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
+    json_str = request.stream.read().decode("UTF-8")
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
     return 'OK', 200
 
 # ✅ تشغيل Webhook عند بدء التشغيل
 @app.route('/')
 def index():
-    bot.remove_webhook()
+    bot.remove_webhook()  # إزالة الـ Webhook القديم إذا كان موجود
     railway_domain = os.getenv('RAILWAY_APP_DOMAIN', 'telegram-bot-guard-production.up.railway.app')
     webhook_url = f"https://{railway_domain}/{TELEGRAM_BOT_TOKEN}"
-    bot.set_webhook(url=webhook_url)
+    bot.set_webhook(url=webhook_url)  # تعيين الـ Webhook الجديد
+
+    # التحقق من حالة Webhook
+    webhook_info = bot.get_webhook_info()
+    print(webhook_info)
+
     return f"🚀 Bot is running! Webhook set to: {webhook_url}"
 
 if __name__ == "__main__":
