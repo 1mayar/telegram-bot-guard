@@ -22,24 +22,18 @@ db = SQLAlchemy(app)
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     telegram_id = db.Column(db.String(50), unique=True, nullable=False)
-    session_id = db.Column(db.String(100), unique=False, nullable=True)
     ip_address = db.Column(db.String(50), nullable=True)
 
 # 📌 إنشاء قاعدة البيانات
 with app.app_context():
     db.create_all()
 
-# 🔒 دالة توليد معرف الجلسة (Session ID)
-def generate_session_id():
-    return hashlib.sha256(str(random.randint(1000, 9999)).encode()).hexdigest()
-
 # ✅ التحقق عند إرسال رسالة
 @bot.message_handler(func=lambda message: True)
 def check_message(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
-    session_id = generate_session_id()
-    user_ip = request.remote_addr  # الحصول على عنوان IP المستخدم
+    user_ip = request.remote_addr  # ✅ جلب عنوان IP المستخدم
 
     # 🔹️ جلب المستخدم من قاعدة البيانات
     user = User.query.filter_by(telegram_id=user_id).first()
@@ -53,12 +47,14 @@ def check_message(message):
         return  # المستخدم غادر الجروب، لا داعي لمعالجته
 
     if user:
-        if user.session_id and user.session_id != session_id:
+        # ✅ التحقق من تغير IP المستخدم (إذا دخل من جهاز آخر)
+        if user.ip_address and user.ip_address != user_ip:
             bot.kick_chat_member(chat_id, user_id)
             bot.send_message(chat_id, f"🚫 المستخدم @{message.from_user.username} طُرد لاستخدام جهاز مختلف!")
             return
     else:
-        new_user = User(telegram_id=user_id, session_id=session_id, ip_address=user_ip)
+        # ✅ تسجيل المستخدم لأول مرة
+        new_user = User(telegram_id=user_id, ip_address=user_ip)
         db.session.add(new_user)
         db.session.commit()
         bot.send_message(chat_id, f"✅ المستخدم @{message.from_user.username} تم تسجيل جهازه!")
