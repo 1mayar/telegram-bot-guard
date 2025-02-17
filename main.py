@@ -1,9 +1,8 @@
 import os
-import hashlib
 import telebot
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
-import random
+import requests
 
 # 🔹️ جلب توكن البوت
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -28,23 +27,39 @@ class User(db.Model):
 with app.app_context():
     db.create_all()
 
+# ✅ وظيفة لجلب عنوان الـ IP باستخدام API خارجي
+def get_ip():
+    try:
+        response = requests.get("https://api64.ipify.org?format=json")
+        return response.json().get("ip")
+    except:
+        return None
+
 # ✅ التحقق عند إرسال رسالة
 @bot.message_handler(func=lambda message: True)
 def check_message(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
-    user_ip = request.remote_addr  # ✅ جلب عنوان IP المستخدم
+    user_ip = get_ip()  # ✅ جلب عنوان الـ IP الصحيح
+
+    if not user_ip:
+        bot.send_message(chat_id, "⚠️ فشل في جلب عنوان IP المستخدم!")
+        return
 
     # 🔹️ جلب المستخدم من قاعدة البيانات
     user = User.query.filter_by(telegram_id=user_id).first()
 
     # ✅ التحقق مما إذا كان المستخدم لا يزال في الجروب
-    chat_member = bot.get_chat_member(chat_id, user_id)
-    if chat_member.status in ["left", "kicked"]:
-        if user:
-            db.session.delete(user)
-            db.session.commit()
-        return  # المستخدم غادر الجروب، لا داعي لمعالجته
+    try:
+        chat_member = bot.get_chat_member(chat_id, user_id)
+        if chat_member.status in ["left", "kicked"]:
+            if user:
+                db.session.delete(user)
+                db.session.commit()
+            return  # المستخدم غادر الجروب، لا داعي لمعالجته
+    except Exception as e:
+        print(f"⚠️ خطأ في جلب حالة المستخدم: {e}")
+        return
 
     if user:
         # ✅ التحقق من تغير IP المستخدم (إذا دخل من جهاز آخر)
